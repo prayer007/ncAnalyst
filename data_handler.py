@@ -38,14 +38,15 @@ class DataHandler(object):
         self.daysSince = self.__setDaysSince(self.src.variables["time"])
         self.daysSinceVec = self.__setDaysSinceVec(self.src.variables["time"][:])
         self.yearsSinceVec = self.daysSinceVec.year.unique()
+        self.srcStartDate = self.daysSinceVec[0]
+        self.srcEndDate = self.daysSinceVec[-1]
         self.monthsSince = self.__setMonthSince()
         self.yearsSince = self.__setYearsSince()
         self.varNamesToBeAnalysed = []
         self.varShape = None # Will be set on .setVariableToAnalyse()
-        self.start = self.daysSinceVec[0]
-        self.startTimDelta = self.start - self.daysSince
-        self.end = self.daysSinceVec[-1]
-        self.endTimDelta = self.end - self.daysSince
+        self.start = None
+        self.end = None
+        self.userDateVec = None
         self.step = "M"
         self.customTimeFlag = False
         
@@ -61,6 +62,49 @@ class DataHandler(object):
         except:
             print "Could not open netCDF file. Unexpected error:", sys.exc_info()[0]
             raise
+
+
+
+
+    def createDateRanges(self, seasonStart, seasonEnd):
+        
+        
+        stepVec = np.array([])
+
+        for i in self.userDateVec.year.unique():
+            
+            startDate = pd.to_datetime(date(i, seasonStart,1))
+            
+            if seasonStart > seasonEnd:
+                endDate = pd.to_datetime(date(i+1, seasonEnd,calendar.monthrange(i+1, seasonEnd)[1]))
+            
+            stepVec = np.append(stepVec, [{     "startDate": startDate, 
+                                                "endDate": endDate,
+                                                "startIdx": np.where(self.daysSinceVec==startDate)[0],
+                                                "endIdx": np.where(self.daysSinceVec==endDate)[0],
+                                         }])
+        
+        return stepVec
+
+
+
+
+
+    def createTimeBounds(self, dateRange):
+        
+        timebnd = np.empty((2,0))
+        timebnd = np.array([])
+        timebnd2 = np.array([])
+        
+        for i, item in enumerate(dateRange):
+            timebnd = np.append(timebnd, item["startIdx"])
+            timebnd2 = np.append(timebnd2, item["endIdx"])
+        
+
+        timebnd = np.append([timebnd], [timebnd2], axis=0)
+        
+        return timebnd
+
 
 
 
@@ -83,14 +127,31 @@ class DataHandler(object):
         
         if self.step is "M":
             tunits = "months since " + str(self.daysSince)  
-        elif self.step is "Y" or self.step is "S":
+        elif self.step is "Y":
             tunits = "years since " + str(self.daysSince)
+        elif self.step is "S":
+            tunits = "days since " + str(self.daysSince)
         else: 
             tunits = "months since " + str(self.daysSince) 
+       
+       
+        dateRange = self.createDateRanges(self.season["start"], self.season["end"])
+        timeBounds = self.createTimeBounds(dateRange)
+      
+    
             
         time = self.dst.createVariable(varname = 'time', datatype = 'i', dimensions = ('time'))  
-        time.setncatts({k: self.src.variables["time"].getncattr(k) for k in self.src.variables["time"].ncattrs()})
         time.units = tunits
+        time.bounds = "time_bnds"
+        time[:] = timeBounds[1,:]
+        
+        bndsDim = self.dst.createDimension("bnds")
+        time_bnds = self.dst.createVariable(varname = 'time_bnds', datatype = 'i', dimensions = ('bnds', 'time'))
+        time_bnds.calendar = "gregorian";
+        time_bnds.units = "days since 2007-01-01";
+        
+        
+        time_bnds[:] = timeBounds
         
         varNameContainer = self.varNamesToBeAnalysed
   
@@ -121,15 +182,16 @@ class DataHandler(object):
             startStep = self.monthsSince 
         elif self.step is "Y":
             startStep = self.yearsSince
-        elif self.step is "S": 
-            startStep = self.yearsSince
-            stepIncr = np.where(self.yearsSinceVec==date.year)[0]
+        elif self.step is "S" or self.step is "3Y": 
+            startStep = self.daysSince
+            stepIncr = np.where(self.daysSinceVec==date)[0]
+        
+        #currStep = startStep + stepIncr
         
 
-        currStep = startStep + stepIncr
         
-        self.dst.variables["time"][stepIncr] = currStep
-        self.dst.variables[varName][stepIncr,:,:] = data
+        #self.dst.variables["time"][stepIncr] = stepIncr
+        #self.dst.variables[varName][stepIncr,:,:] = data
         
         
         
@@ -209,6 +271,7 @@ class DataHandler(object):
         self.start = pd.to_datetime(start)
         self.end = pd.to_datetime(end)
         self.step = step
+        self.userDateVec = pd.date_range(self.start, self.end)
     
         if self.end > self.daysSinceVec[-1]:
             raise Exception("End time: " + str(self.end) + " is out of bounds. Bound end is " + str(self.daysSinceVec[-1]))

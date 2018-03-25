@@ -24,14 +24,14 @@ class StatsUnivariat(object):
         print("Step time is: " + data_handler.step)
     
 
-
         startIdx = np.where(data_handler.daysSinceVec==data_handler.start)[0]
         endIdx =  np.where(data_handler.daysSinceVec==data_handler.end)[0]
         stepCount = 0
         val = np.zeros(varToBeAnalysed[0].shape)
         vals = np.zeros(varToBeAnalysed[0].shape)
         stepRangeCount = 0
-        k = 0
+        seasonCounter = 0
+        yearPeriodCounter = 0
 
         for i in np.arange(startIdx, endIdx, 1):
 
@@ -43,7 +43,7 @@ class StatsUnivariat(object):
                 currTimeDelta = pd.to_datetime(date(currDate.year, currDate.month, 1)) - data_handler.daysSince
                 nextTimeDelta = pd.to_datetime(date(nextDate.year, nextDate.month, 1)) - data_handler.daysSince
 
-            elif data_handler.step is "Y":
+            elif data_handler.step is "Y" or data_handler.step is "3Y":
                 currTimeDelta = pd.to_datetime(date(currDate.year, 1, 1)) - data_handler.daysSince
                 nextTimeDelta = pd.to_datetime(date(nextDate.year, 1, 1)) - data_handler.daysSince
             elif data_handler.step is "S":
@@ -51,23 +51,22 @@ class StatsUnivariat(object):
                 nextTimeDelta = pd.to_datetime(date(nextDate.year, nextDate.month, 1)) - data_handler.daysSince
                 seasonBeginTimeDelta = pd.to_datetime(date(currDate.year, data_handler.season["start"], 1)) - data_handler.daysSince
                 
-                seasonStart = pd.to_datetime(date(data_handler.start.year+k, data_handler.season["start"], 1))
+                seasonStart = pd.to_datetime(date(data_handler.start.year+seasonCounter, data_handler.season["start"], 1))
                 
                 if data_handler.season["start"] > data_handler.season["end"]:
-                    seasonEnd = pd.to_datetime(date(data_handler.start.year+1+k, data_handler.season["end"], calendar.monthrange(data_handler.start.year+1+k,data_handler.season["end"])[1]))
+                    seasonEnd = pd.to_datetime(date(data_handler.start.year+1+seasonCounter, data_handler.season["end"], calendar.monthrange(data_handler.start.year+1+seasonCounter,data_handler.season["end"])[1]))
                 else:
-                    seasonEnd = pd.to_datetime(date(data_handler.start.year+k, data_handler.season["end"], calendar.monthrange(data_handler.start.year+1+k,data_handler.season["end"])[1]))
+                    seasonEnd = pd.to_datetime(date(data_handler.start.year+seasonCounter, data_handler.season["end"], calendar.monthrange(data_handler.start.year+1+seasonCounter,data_handler.season["end"])[1]))
             else:
-                currTimeDelta = pd.to_datetime(date(currDate.year, currDate.month, 1)) - data_handler.daysSince
-                nextTimeDelta = pd.to_datetime(date(nextDate.year, nextDate.month, 1)) - data_handler.daysSince
+                raise Exception("Timestep option '" + data_handler.step + "' not exists.")
 
 
             func = funcToBeApplied 
             val = varToBeAnalysed[i]
             
+            
             if data_handler.step is "M" or data_handler.step is "Y":
             
-                
                 if func == "sum" or func == "mean":
                      # If all values are masked it is assumed that it is missing data
                     if not np.ma.is_masked(np.nanmax(val)):
@@ -123,9 +122,39 @@ class StatsUnivariat(object):
                     # Write the result to the file 
 
                     data_handler.writeToOutputFile(varName, stepRangeCount, currDate, result)
-                    k = k+1
+                    seasonCounter = seasonCounter+1
                     stepRangeCount = stepRangeCount+1
+            
+            
+            elif data_handler.step is "3Y":
+            
+                if func == "sum" or func == "mean":
+                     # If all values are masked it is assumed that it is missing data
+                    if not np.ma.is_masked(np.nanmax(val)):
+                        vals = vals + val # Agregate the data to the given step
+                        stepCount = stepCount+1
+                else:
+                    raise Exception('Unknown statistics function:' + func) 
+                
+    
+                # If new timestep begins (e.g. new month or year)
+                if nextTimeDelta > currTimeDelta:
+                    yearPeriodCounter = yearPeriodCounter + 1
+                
+                if yearPeriodCounter == 3: 
                     
+                    if func == "sum":
+                        result = vals
+                    elif func == "mean":
+                        if stepCount != 0:
+                            result = vals / stepCount
+                        
+                    vals = stepCount = 0
+                    
+                    # Write the result to the file    
+                    data_handler.writeToOutputFile(varName, stepRangeCount, currDate, result)
+                    stepRangeCount = stepRangeCount+1
+                    yearPeriodCounter = 0
             else:
                 print("Attention! Unknown step: " + data_handler.step + ". Can not Calculate. Aborting ...") 
                 return 0
