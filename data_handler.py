@@ -92,16 +92,11 @@ class DataHandler(object):
 
     def createTimeBounds(self, dateRange):
         
-        timebnd = np.empty((2,0))
-        timebnd = np.array([])
-        timebnd2 = np.array([])
+        timebnd = np.empty((0,2))
         
         for i, item in enumerate(dateRange):
-            timebnd = np.append(timebnd, item["startIdx"])
-            timebnd2 = np.append(timebnd2, item["endIdx"])
-        
+            timebnd = np.append(timebnd, [[item["startIdx"][0],item["endIdx"][0]]], axis=0)
 
-        timebnd = np.append([timebnd], [timebnd2], axis=0)
         
         return timebnd
 
@@ -143,12 +138,12 @@ class DataHandler(object):
         time = self.dst.createVariable(varname = 'time', datatype = 'i', dimensions = ('time'))  
         time.units = tunits
         time.bounds = "time_bnds"
-        time[:] = timeBounds[1,:]
+        time[:] = timeBounds[:,1]
         
         bndsDim = self.dst.createDimension("bnds")
-        time_bnds = self.dst.createVariable(varname = 'time_bnds', datatype = 'i', dimensions = ('bnds', 'time'))
+        time_bnds = self.dst.createVariable(varname = 'time_bnds', datatype = 'i', dimensions = ('time', 'bnds'))
         time_bnds.calendar = "gregorian";
-        time_bnds.units = "days since 2007-01-01";
+        time_bnds.units = tunits
         
         
         time_bnds[:] = timeBounds
