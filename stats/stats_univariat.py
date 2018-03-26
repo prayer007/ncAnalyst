@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import *
 import calendar
 
+
 class StatsUnivariat(object):    
 
 
@@ -18,146 +19,24 @@ class StatsUnivariat(object):
         if not data_handler.customTimeFlag:
             warnings.warn("Attention! There is no timespan set, so default timespan is used. On big data that may leed to long execution times. Set the timespan with DataAnalysis().setTimeSpan(start, end, step)", UserWarning)
         
-        print("Calculating variable: " + varName)
-        print("Start time is: " + pd.to_datetime(str(data_handler.start)).strftime('%Y-%m-%d'))
-        print("End time is: " + pd.to_datetime(str(data_handler.end)).strftime('%Y-%m-%d'))
-        print("Step time is: " + data_handler.step)
+        # print("Calculating variable: " + varName)
+        # print("Start time is: " + pd.to_datetime(str(data_handler.start)).strftime('%Y-%m-%d'))
+        # print("End time is: " + pd.to_datetime(str(data_handler.end)).strftime('%Y-%m-%d'))
+        # print("Step time is: " + data_handler.step)
     
 
-        startIdx = np.where(data_handler.daysSinceVec==data_handler.start)[0]
-        endIdx =  np.where(data_handler.daysSinceVec==data_handler.end)[0]
-        stepCount = 0
-        val = np.zeros(varToBeAnalysed[0].shape)
-        vals = np.zeros(varToBeAnalysed[0].shape)
-        stepRangeCount = 0
-        seasonCounter = 0
-        yearPeriodCounter = 0
-
-        for i in np.arange(startIdx, endIdx, 1):
-
-            currDate = data_handler.daysSinceVec[i]
-            nextDate = data_handler.daysSinceVec[i+1]
-            startDate = data_handler.daysSince
-
-            if data_handler.step is "M":
-                currTimeDelta = pd.to_datetime(date(currDate.year, currDate.month, 1)) - data_handler.daysSince
-                nextTimeDelta = pd.to_datetime(date(nextDate.year, nextDate.month, 1)) - data_handler.daysSince
-
-            elif data_handler.step is "Y" or data_handler.step is "3Y":
-                currTimeDelta = pd.to_datetime(date(currDate.year, 1, 1)) - data_handler.daysSince
-                nextTimeDelta = pd.to_datetime(date(nextDate.year, 1, 1)) - data_handler.daysSince
-            elif data_handler.step is "S":
-                currTimeDelta = pd.to_datetime(date(currDate.year, currDate.month, 1)) - data_handler.daysSince
-                nextTimeDelta = pd.to_datetime(date(nextDate.year, nextDate.month, 1)) - data_handler.daysSince
-                seasonBeginTimeDelta = pd.to_datetime(date(currDate.year, data_handler.season["start"], 1)) - data_handler.daysSince
-                
-                seasonStart = pd.to_datetime(date(data_handler.start.year+seasonCounter, data_handler.season["start"], 1))
-                
-                if data_handler.season["start"] > data_handler.season["end"]:
-                    seasonEnd = pd.to_datetime(date(data_handler.start.year+1+seasonCounter, data_handler.season["end"], calendar.monthrange(data_handler.start.year+1+seasonCounter,data_handler.season["end"])[1]))
-                else:
-                    seasonEnd = pd.to_datetime(date(data_handler.start.year+seasonCounter, data_handler.season["end"], calendar.monthrange(data_handler.start.year+1+seasonCounter,data_handler.season["end"])[1]))
-            else:
-                raise Exception("Timestep option '" + data_handler.step + "' not exists.")
-
-
-            func = funcToBeApplied 
-            val = varToBeAnalysed[i]
+        for period in  data_handler.spanStartSpanEnd:
+            periodStartIdx = int(np.where(data_handler.daysSinceVec==period["startDate"])[0])
+            periodEndIdx = int(np.where(data_handler.daysSinceVec==period["endDate"])[0])
             
+            data = varToBeAnalysed[periodStartIdx:periodEndIdx]
             
-            if data_handler.step is "M" or data_handler.step is "Y":
+            if funcToBeApplied == "sum":
+                result = np.nansum(data, axis = 0)
+            elif funcToBeApplied == "mean":
+                result = np.nanmean(data, axis = 0)
             
-                if func == "sum" or func == "mean":
-                     # If all values are masked it is assumed that it is missing data
-                    if not np.ma.is_masked(np.nanmax(val)):
-                        vals = vals + val # Agregate the data to the given step
-                        stepCount = stepCount+1
-                else:
-                    raise Exception('Unknown statistics function:' + func) 
-                
-    
-                # If new timestep begins (e.g. new month or year)
-                if nextTimeDelta > currTimeDelta:
-                    if func == "sum":
-                        result = vals
-                    elif func == "mean":
-                        if stepCount != 0:
-                            result = vals / stepCount
-                        
-                    vals = stepCount = 0
-                    
-                    # Write the result to the file    
-                    data_handler.writeToOutputFile(varName, stepRangeCount, currDate, result)
-                    stepRangeCount = stepRangeCount+1
-                   
-                    
-            elif data_handler.step is "S":
-
-                if currDate >= seasonStart and currDate <= seasonEnd:  
-                    condition = True
-                else: 
-                    condition = False
-                
-                if func == "sum" or func == "mean":
-                     # If all values are masked it is assumed that it is missing data
-                    if not np.ma.is_masked(np.nanmax(val)) and condition:
-                        
-                        vals = vals + val # Agregate the data to the given step
-                        stepCount = stepCount+1
-                else:
-                    raise Exception('Unknown statistics function:' + func) 
-                
-    
-                # If new timestep begins (e.g. new month or year or season) calculate the statistics
-                if currDate >= seasonEnd:
-                    
-                    if func == "sum":
-                        result = vals
-                    elif func == "mean":
-                        if stepCount != 0:
-                            result = vals / stepCount
-                       
-                    vals = stepCount = 0
-                    
-                    # Write the result to the file 
-
-                    data_handler.writeToOutputFile(varName, stepRangeCount, currDate, result)
-                    seasonCounter = seasonCounter+1
-                    stepRangeCount = stepRangeCount+1
-            
-            
-            elif data_handler.step is "3Y":
-            
-                if func == "sum" or func == "mean":
-                     # If all values are masked it is assumed that it is missing data
-                    if not np.ma.is_masked(np.nanmax(val)):
-                        vals = vals + val # Agregate the data to the given step
-                        stepCount = stepCount+1
-                else:
-                    raise Exception('Unknown statistics function:' + func) 
-                
-    
-                # If new timestep begins (e.g. new month or year)
-                if nextTimeDelta > currTimeDelta:
-                    yearPeriodCounter = yearPeriodCounter + 1
-                
-                if yearPeriodCounter == 3: 
-                    
-                    if func == "sum":
-                        result = vals
-                    elif func == "mean":
-                        if stepCount != 0:
-                            result = vals / stepCount
-                        
-                    vals = stepCount = 0
-                    
-                    # Write the result to the file    
-                    data_handler.writeToOutputFile(varName, stepRangeCount, currDate, result)
-                    stepRangeCount = stepRangeCount+1
-                    yearPeriodCounter = 0
-            else:
-                print("Attention! Unknown step: " + data_handler.step + ". Can not Calculate. Aborting ...") 
-                return 0
+            print result
             
 
 

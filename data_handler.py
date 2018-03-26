@@ -37,6 +37,7 @@ class DataHandler(object):
         self.setOutputPath(outputPath)
         self.daysSince = self.__setDaysSince(self.src.variables["time"])
         self.daysSinceVec = self.__setDaysSinceVec(self.src.variables["time"][:])
+        self.daysSinceVecIdx = self.src.variables["time"][:]
         self.yearsSinceVec = self.daysSinceVec.year.unique()
         self.srcStartDate = self.daysSinceVec[0]
         self.srcEndDate = self.daysSinceVec[-1]
@@ -47,6 +48,7 @@ class DataHandler(object):
         self.start = None
         self.end = None
         self.userDateVec = None
+        self.spanStartSpanEnd = None
         self.step = "M"
         self.customTimeFlag = False
         
@@ -78,11 +80,15 @@ class DataHandler(object):
             if seasonStart > seasonEnd:
                 endDate = pd.to_datetime(date(i+1, seasonEnd,calendar.monthrange(i+1, seasonEnd)[1]))
             
+
+            
             stepVec = np.append(stepVec, [{     "startDate": startDate, 
                                                 "endDate": endDate,
-                                                "startIdx": np.where(self.daysSinceVec==startDate)[0],
-                                                "endIdx": np.where(self.daysSinceVec==endDate)[0],
+                                                "startIdx": self.daysSinceVecIdx[np.where(self.daysSinceVec==startDate)[0]],
+                                                "endIdx": self.daysSinceVecIdx[np.where(self.daysSinceVec==endDate)[0]],
                                          }])
+        
+        self.spanStartSpanEnd = stepVec
         
         return stepVec
 
@@ -119,21 +125,11 @@ class DataHandler(object):
             
 
         # Add variables
-        
-        if self.step is "M":
-            tunits = "months since " + str(self.daysSince)  
-        elif self.step is "Y":
-            tunits = "years since " + str(self.daysSince)
-        elif self.step is "S":
-            tunits = "days since " + str(self.daysSince)
-        else: 
-            tunits = "months since " + str(self.daysSince) 
-       
+        daysSince = str(self.daysSince).split()[0] 
+        tunits = "days since " + daysSince
        
         dateRange = self.createDateRanges(self.season["start"], self.season["end"])
         timeBounds = self.createTimeBounds(dateRange)
-      
-    
             
         time = self.dst.createVariable(varname = 'time', datatype = 'i', dimensions = ('time'))  
         time.units = tunits
@@ -145,9 +141,8 @@ class DataHandler(object):
         time_bnds.calendar = "gregorian";
         time_bnds.units = tunits
         
-        
+
         time_bnds[:] = timeBounds
-        
         varNameContainer = self.varNamesToBeAnalysed
   
         for name, variable in self.src.variables.iteritems():
