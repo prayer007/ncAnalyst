@@ -37,6 +37,7 @@ class DataHandler(object):
         self.setOutputPath(outputPath)
         self.daysSince = self.__setDaysSince(self.src.variables["time"])
         self.daysSinceVec = self.__setDaysSinceVec(self.src.variables["time"][:])
+        self.allDaysSinceVec = pd.date_range(self.daysSince, self.daysSinceVec[-1])
         self.daysSinceVecIdx = self.src.variables["time"][:]
         self.yearsSinceVec = self.daysSinceVec.year.unique()
         self.srcStartDate = self.daysSinceVec[0]
@@ -68,19 +69,21 @@ class DataHandler(object):
 
 
 
-    def createDateRanges(self, seasonStart, seasonEnd):
+    def createDateRanges(self, periodStart, periodEnd):
         
         
         stepVec = np.array([])
 
         for i in self.userDateVec.year.unique():
             
-            startDate = pd.to_datetime(date(i, seasonStart,1))
+            startDate = pd.to_datetime(date(i, periodStart,1))
             
-            if seasonStart > seasonEnd:
-                endDate = pd.to_datetime(date(i+1, seasonEnd,calendar.monthrange(i+1, seasonEnd)[1]))
-            
-
+            if periodStart > periodEnd:
+                endDate = pd.to_datetime(date(i+1, periodEnd,calendar.monthrange(i+1, periodEnd)[1]))
+                # for decade: endDate = pd.to_datetime(date(i+yearRange+1, periodEnd,calendar.monthrange(i+1, periodEnd)[1]))
+            else:
+                endDate = pd.to_datetime(date(i, periodEnd,calendar.monthrange(i, periodEnd)[1]))
+                # for decade: endDate = pd.to_datetime(date(i+yearRange, periodEnd,calendar.monthrange(i, periodEnd)[1]))
             
             stepVec = np.append(stepVec, [{     "startDate": startDate, 
                                                 "endDate": endDate,
@@ -128,7 +131,7 @@ class DataHandler(object):
         daysSince = str(self.daysSince).split()[0] 
         tunits = "days since " + daysSince
        
-        dateRange = self.createDateRanges(self.season["start"], self.season["end"])
+        dateRange = self.createDateRanges(self.period["start"], self.period["end"])
         timeBounds = self.createTimeBounds(dateRange)
             
         time = self.dst.createVariable(varname = 'time', datatype = 'i', dimensions = ('time'))  
@@ -164,24 +167,9 @@ class DataHandler(object):
             
             
 
-    def writeToOutputFile(self, varName, stepIncr, date, data):
+    def writeToOutputFile(self, varName, stepIncr, data):
         
-
-        
-        if self.step is "M":
-            startStep = self.monthsSince 
-        elif self.step is "Y":
-            startStep = self.yearsSince
-        elif self.step is "S" or self.step is "3Y": 
-            startStep = self.daysSince
-            stepIncr = np.where(self.daysSinceVec==date)[0]
-        
-        #currStep = startStep + stepIncr
-        
-
-        
-        #self.dst.variables["time"][stepIncr] = stepIncr
-        #self.dst.variables[varName][stepIncr,:,:] = data
+        self.dst.variables[varName][stepIncr,:,:] = data
         
         
         
@@ -244,23 +232,29 @@ class DataHandler(object):
 
 
 
-    def setTimeSpan(self, start, end, step, **kwargs):
+    def setTimeSpan(self, start, end, **kwargs):
         
         self.customTimeFlag = True
         
-        if step is "S":
+        try: 
+            s = kwargs["period"]
             
-            try: 
-                s = kwargs["season"]
-                self.season = {"start": s[0], "end": s[1]}
-            except KeyError:
-                self.season = {"start": 12, "end": 3}
-                print "Parameter 'season' not set. Continuing with default 12-3"
+            if not isinstance(s, list):
+                raise ValueError("Period parameter must be of type array!") 
             
+            if len(s) == 0:
+                print "No period set. Continuing with default 12-3"
+                self.period = {"start": s[0], "end": s[1]}
+            elif len(s) == 1:
+                self.period = {"start": s[0], "end": s[0]}
+            else:   
+                self.period = {"start": s[0], "end": s[1]}
+        except KeyError:
+            self.period = {"start": 12, "end": 3}
+            print "Parameter 'period' not set. Continuing with default 12-3"
         
         self.start = pd.to_datetime(start)
         self.end = pd.to_datetime(end)
-        self.step = step
         self.userDateVec = pd.date_range(self.start, self.end)
     
         if self.end > self.daysSinceVec[-1]:

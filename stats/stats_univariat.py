@@ -25,18 +25,19 @@ class StatsUnivariat(object):
         # print("Step time is: " + data_handler.step)
     
 
-        for period in  data_handler.spanStartSpanEnd:
+        for i, period in enumerate(data_handler.spanStartSpanEnd):
             periodStartIdx = int(np.where(data_handler.daysSinceVec==period["startDate"])[0])
             periodEndIdx = int(np.where(data_handler.daysSinceVec==period["endDate"])[0])
+            
             
             data = varToBeAnalysed[periodStartIdx:periodEndIdx]
             
             if funcToBeApplied == "sum":
-                result = np.nansum(data, axis = 0)
+                result = np.sum(data, axis = 0)
             elif funcToBeApplied == "mean":
-                result = np.nanmean(data, axis = 0)
+                result = np.mean(data, axis = 0)
             
-            print result
+            data_handler.writeToOutputFile(varName, i, result)
             
 
 
