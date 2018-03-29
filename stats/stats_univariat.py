@@ -7,27 +7,27 @@ import calendar
 class StatsUnivariat(object):    
 
 
-    def __init__(self, data_handler):
-        self.data_handler = data_handler    
+    def __init__(self, nc_manager):
+        self.nc_manager = nc_manager    
         self.varsToBeAnalysed = []
 
 
     def __calc(self, varName, varToBeAnalysed, funcToBeApplied):
         
-        data_handler = self.data_handler
+        nc_manager = self.nc_manager
      
-        if not data_handler.customTimeFlag:
+        if not nc_manager.customTimeFlag:
             warnings.warn("Attention! There is no timespan set, so default timespan is used. On big data that may leed to long execution times. Set the timespan with DataAnalysis().setTimeSpan(start, end, step)", UserWarning)
         
         # print("Calculating variable: " + varName)
-        # print("Start time is: " + pd.to_datetime(str(data_handler.start)).strftime('%Y-%m-%d'))
-        # print("End time is: " + pd.to_datetime(str(data_handler.end)).strftime('%Y-%m-%d'))
-        # print("Step time is: " + data_handler.step)
+        # print("Start time is: " + pd.to_datetime(str(nc_manager.start)).strftime('%Y-%m-%d'))
+        # print("End time is: " + pd.to_datetime(str(nc_manager.end)).strftime('%Y-%m-%d'))
+        # print("Step time is: " + nc_manager.step)
     
 
-        for i, period in enumerate(data_handler.spanStartSpanEnd):
-            periodStartIdx = int(np.where(data_handler.daysSinceVec==period["startDate"])[0])
-            periodEndIdx = int(np.where(data_handler.daysSinceVec==period["endDate"])[0])
+        for i, period in enumerate(nc_manager.spanStartSpanEnd):
+            periodStartIdx = int(np.where(nc_manager.daysSinceVec==period["startDate"])[0])
+            periodEndIdx = int(np.where(nc_manager.daysSinceVec==period["endDate"])[0])
             
             
             data = varToBeAnalysed[periodStartIdx:periodEndIdx]
@@ -37,7 +37,7 @@ class StatsUnivariat(object):
             elif funcToBeApplied == "mean":
                 result = np.mean(data, axis = 0)
             
-            data_handler.writeToOutputFile(varName, i, result)
+            nc_manager.writeToOutputFile(varName, i, result)
             
 
 
@@ -59,7 +59,7 @@ class StatsUnivariat(object):
                 if self.__calc(varName, data, func) == 0:
                     return 0
 
-        self.data_handler.dst.close()
+        self.nc_manager.dst.close()
 
 
 
@@ -67,17 +67,17 @@ class StatsUnivariat(object):
     def setVariablesToAnalyse(self, vars_):
         
         # Appends the netCDF src variable. 
-        data_handler = self.data_handler
+        nc_manager = self.nc_manager
         
         for i in vars_:
             try:
-                i["data"] = data_handler.src.variables[i["var"]]
+                i["data"] = nc_manager.src.variables[i["var"]]
                 self.varsToBeAnalysed = vars_ 
                 self.varShape = i["data"][0].shape
-                data_handler.varNamesToBeAnalysed = np.append(data_handler.varNamesToBeAnalysed, i["var"])
+                nc_manager.varNamesToBeAnalysed = np.append(nc_manager.varNamesToBeAnalysed, i["var"])
 
             except KeyError as e: 
                 print("Variable '" + i["var"] + "' not found in datafile. Continues with next variable...")
                 i["var"] = "skip"
         
-        data_handler.initializeOutputFile(data_handler.outputPath)
+        nc_manager.initializeOutputFile(nc_manager.outputPath)

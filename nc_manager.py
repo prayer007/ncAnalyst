@@ -10,7 +10,7 @@ import calendar
 
 
 
-class DataHandler(object):
+class NcManager(object):
     
     '''
     Class for running a leave-one-out cross validation of simple
@@ -69,27 +69,28 @@ class DataHandler(object):
 
 
 
-    def createDateRanges(self, periodStart, periodEnd):
+    def createDateRanges(self, periodStart, periodEnd, yearRange):
         
         
         stepVec = np.array([])
 
-        for i in self.userDateVec.year.unique():
+        period = np.arange(self.userDateVec.year.unique().min(), self.userDateVec.year.unique().max(),yearRange+1)
+
+        for i in period:
             
             startDate = pd.to_datetime(date(i, periodStart,1))
             
             if periodStart > periodEnd:
-                endDate = pd.to_datetime(date(i+1, periodEnd,calendar.monthrange(i+1, periodEnd)[1]))
-                # for decade: endDate = pd.to_datetime(date(i+yearRange+1, periodEnd,calendar.monthrange(i+1, periodEnd)[1]))
+                endDate = pd.to_datetime(date(i+yearRange+1, periodEnd,calendar.monthrange(i+1, periodEnd)[1]))
             else:
-                endDate = pd.to_datetime(date(i, periodEnd,calendar.monthrange(i, periodEnd)[1]))
-                # for decade: endDate = pd.to_datetime(date(i+yearRange, periodEnd,calendar.monthrange(i, periodEnd)[1]))
+                endDate = pd.to_datetime(date(i+yearRange, periodEnd,calendar.monthrange(i, periodEnd)[1]))
             
-            stepVec = np.append(stepVec, [{     "startDate": startDate, 
-                                                "endDate": endDate,
-                                                "startIdx": self.daysSinceVecIdx[np.where(self.daysSinceVec==startDate)[0]],
-                                                "endIdx": self.daysSinceVecIdx[np.where(self.daysSinceVec==endDate)[0]],
-                                         }])
+            if endDate <= self.srcEndDate: 
+                stepVec = np.append(stepVec, [{     "startDate": startDate, 
+                                                    "endDate": endDate,
+                                                    "startIdx": self.daysSinceVecIdx[np.where(self.daysSinceVec==startDate)[0]],
+                                                    "endIdx": self.daysSinceVecIdx[np.where(self.daysSinceVec==endDate)[0]],
+                                             }])
         
         self.spanStartSpanEnd = stepVec
         
@@ -131,7 +132,7 @@ class DataHandler(object):
         daysSince = str(self.daysSince).split()[0] 
         tunits = "days since " + daysSince
        
-        dateRange = self.createDateRanges(self.period["start"], self.period["end"])
+        dateRange = self.createDateRanges(self.period["start"], self.period["end"], self.period["yearRange"])
         timeBounds = self.createTimeBounds(dateRange)
             
         time = self.dst.createVariable(varname = 'time', datatype = 'i', dimensions = ('time'))  
@@ -244,13 +245,17 @@ class DataHandler(object):
             
             if len(s) == 0:
                 print "No period set. Continuing with default 12-3"
-                self.period = {"start": s[0], "end": s[1]}
+                self.period = {"start": 12, "end": 3, "yearRange": 0}
             elif len(s) == 1:
-                self.period = {"start": s[0], "end": s[0]}
+                self.period = {"start": s[0], "end": s[0], "yearRange": 0}
+            elif len(s) == 2:
+                self.period = {"start": s[0], "end": s[1], "yearRange": 0}
+            elif len(s) == 3:
+                self.period = {"start": s[0], "end": s[1], "yearRange": s[2]}
             else:   
-                self.period = {"start": s[0], "end": s[1]}
+                raise ValueError("Too much entries in paramterer 'period'")
         except KeyError:
-            self.period = {"start": 12, "end": 3}
+            self.period = {"start": 12, "end": 3, "yearRange": 0}
             print "Parameter 'period' not set. Continuing with default 12-3"
         
         self.start = pd.to_datetime(start)
