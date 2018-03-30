@@ -7,16 +7,41 @@ from point_manager import *
 
 
 class StatsUnivariat(object):    
-
-
+    '''
+    This class handles the univariat statistical 
+    analysis. 
+    '''
     def __init__(self, nc_manager, point_manager):
+        '''        
+        Parameters
+        ----------
+        nc_manager : nc_manager.NcManager
+            The manager for the src and dst ncfile
+        point_manager : point_manager.PointManager
+            Handler for the points
+        '''
         self.nc_manager = nc_manager
         self.point_manager = point_manager
         self.varsToBeAnalysed = []
 
 
     def __calc(self, varName, varToBeAnalysed, funcToBeApplied, csv):
+        '''        
+        Calculates the statistics iteratively for each
+        period. The shorter the time range the greater
+        the number of iterations.
         
+        Parameters
+        ----------
+        varName : string
+            Variable name
+        varToBeAnalysed : netCDF4._netCDF4.Variable
+            Raw nc variable
+        funcToBeApplied : string
+            The univariate function name
+        csv : csv_manager.Csv
+            Manages the csv output             
+        '''        
         nc_manager = self.nc_manager
      
         if not nc_manager.customTimeFlag:
@@ -27,12 +52,10 @@ class StatsUnivariat(object):
         # print("End time is: " + pd.to_datetime(str(nc_manager.end)).strftime('%Y-%m-%d'))
         # print("Step time is: " + nc_manager.step)
     
-
         for i, period in enumerate(nc_manager.spanStartSpanEnd):
             
             periodStartIdx = int(np.where(nc_manager.sourceDates==period["startDate"])[0])
             periodEndIdx = int(np.where(nc_manager.sourceDates==period["endDate"])[0])
-            
             
             data = varToBeAnalysed[periodStartIdx:periodEndIdx]
             timestepStr = str(period["startDate"]) + " - " + str(period["endDate"]) # Timestep string for .csv output
@@ -41,6 +64,8 @@ class StatsUnivariat(object):
                 result = np.sum(data, axis = 0)
             elif funcToBeApplied == "mean":
                 result = np.mean(data, axis = 0)
+            else:
+                raise ValueError("Function '" + funcToBeApplied + "' to be applied on variable '" + varName + "' not known.")
             
             for point in self.point_manager.pointsContainer:
                 val = point.extractPtVal(result)
@@ -48,12 +73,13 @@ class StatsUnivariat(object):
                 
             nc_manager.writeToOutputFile(varName, i, result)
             
-
-
-
-
+            
     def calcAll(self):
-        
+        '''        
+        Calls the calculating function iteratively 
+        for every variable and writes the results
+        to csv and ncfile.
+        '''        
         varsToBeAnalysed = self.varsToBeAnalysed 
         
         if not varsToBeAnalysed:
@@ -74,10 +100,17 @@ class StatsUnivariat(object):
         self.nc_manager.dst.close()
 
 
-
-
     def setVariablesToAnalyse(self, vars_):
+        '''        
+        Stores the variables to be analyses and
+        its corresponding statistic function
         
+        Parameters
+        ----------
+        vars_ : ndarray
+            Array of dicts with varname and statics
+            function to be applied.
+        '''            
         # Appends the netCDF src variable. 
         nc_manager = self.nc_manager
         

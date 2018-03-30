@@ -10,7 +10,7 @@ def main():
     point_manager.createPoint(11,61)
     point_manager.createPoint(36,20)
     stats_univariat = StatsUnivariat(nc_manager, point_manager)
-    stats_univariat.setVariablesToAnalyse([{"var": "asmh", "func": "sum"},{"var": "tas", "func": "mean"}])
+    stats_univariat.setVariablesToAnalyse([{"var": "asmh", "func": "sm"},{"var": "tas", "func": "mean"}])
     stats_univariat.calcAll()
 
 
