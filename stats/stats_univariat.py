@@ -54,10 +54,12 @@ class StatsUnivariat(object):
     
         for i, period in enumerate(nc_manager.spanStartSpanEnd):
             
-            periodStartIdx = int(np.where(nc_manager.sourceDates==period["startDate"])[0])
-            periodEndIdx = int(np.where(nc_manager.sourceDates==period["endDate"])[0])
+            periodStartIdx = nc_manager.sourceDatesIdx[period["startDate"]]
+            periodEndIdx = nc_manager.sourceDatesIdx[period["endDate"]]
+
+            boolArr = nc_manager.boolDateVec[periodStartIdx:periodEndIdx]
+            data = varToBeAnalysed[periodStartIdx:periodEndIdx][boolArr]
             
-            data = varToBeAnalysed[periodStartIdx:periodEndIdx]
             timestepStr = str(period["startDate"]) + " - " + str(period["endDate"]) # Timestep string for .csv output
             
             if funcToBeApplied == "sum":

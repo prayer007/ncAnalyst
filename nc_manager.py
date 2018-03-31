@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import numpy as np
 import pandas as pd
 from netCDF4 import Dataset
@@ -22,26 +25,76 @@ class NcManager(object):
             The path of the source file.
         outputPath : string
             The path of the destination file.
+
+        Attributes
+        ----------
+        
+        src : string
+            Path to the source file
+        dest : string
+            Path to the destination file
+        ouputPath : string
+            Path were the output should be written  
+        customTimeFlag : bool
+            Flag to check if a timespan was set
+
+        ----------
+        To better describe the attributes regarding to the
+        time dimension let´s assume following ncfile setting:
+        time.units = "days since 1949-12-01 00:00:00"
+        time index start = 18293, so starting date is 2000-01-01  
+        time index end = 55182, so end date is 2100-12-31  
+        user setting: "2000-01-01", "2011-12-31", period = [10,4,5]
+
+        daysSince : datetime
+            The date extracted from the "days since 1949-12-01 00:00:00" string 
+        sourceDates : ndarray
+            All the dates of the source file as datetimes (2000-01-01 to 2100-12-31)
+        allDaysSinceVec : ndarray
+            All the dates since the files starting date (1949-12-01 to 2100-12-31) 
+        sourceDatesIdx : pandas.Series 
+            Source dates as index and progressive index as value (Index= 2000-01-01 to 2100-12-31, value= 0 to 36889)  
+        sourceDatesIdxAll : ndarray
+            All indexes from start. 
+        srcStartDate : datetime
+            Start date of the source (2000-01-01)
+        srcEndDate : datetime
+            End date of the source (2100-12-31)
+        datesToAnalyse : ndarray
+            Only the dates that have to be analysed. From 2000-01-01 to 2011-12-31 all months from 10 (October) to 4 (April) 
+        userDateVec : ndarray
+            All dates from the user defined timespan (2000-01-01 to 2011-12-31)
+        boolDateVec : ndarray
+            A boolean date vector between user start and user end. 
+        spanStartSpanEnd : ndarray
+            Array with dicts of the user defined periods
+            [{'startDate': Timestamp('2000-10-01 00:00:00'), 'endDate': Timestamp('2006-04-30 00:00:00'), 'endIdx': array([20604]), 'startIdx': array([18567])}]
+        start : datetime
+            User defined start date (2000-01-01) 
+        end : datetime
+            User defined end date (2011-12-31)
         '''
         self.src = None 
         self.dest = None 
         self.outputPath = None
         self.readData(ncPath)
         self.setOutputPath(outputPath)
+        self.varNamesToBeAnalysed = []
         self.daysSince = self.__setDaysSince(self.src.variables["time"])
         self.sourceDates = self.__setSourceDates(self.src.variables["time"][:])
         self.allDaysSinceVec = pd.date_range(self.daysSince, self.sourceDates[-1])
-        self.sourceDatesIdx = self.src.variables["time"][:]
-        self.yearsSinceVec = self.sourceDates.year.unique()
+        self.sourceDatesIdx = self.__setSourceDatesIdx(self.sourceDates)
+        self.sourceDatesIdxAll = self.src.variables["time"][:]
         self.srcStartDate = self.sourceDates[0]
         self.srcEndDate = self.sourceDates[-1]
-        self.varNamesToBeAnalysed = []
+        self.datesToAnalyse = []
+        self.userDateVec = []
+        self.chunkIdxContainer = []
+        self.boolDateVec = []
         self.varShape = None # Will be set on .setVariableToAnalyse()
         self.start = None
         self.end = None
-        self.userDateVec = None
         self.spanStartSpanEnd = None
-        self.step = "M"
         self.customTimeFlag = False
         
         
@@ -77,7 +130,20 @@ class NcManager(object):
         stepVec : ndarray
             Container with dicts which holds information
             about start/end Date and Indexes.
-        '''        
+        '''
+        userStartDate = pd.to_datetime(date(self.start.year, periodStart,1))
+        userEndDate = pd.to_datetime(date(self.end.year, periodEnd, calendar.monthrange(self.end.year, periodEnd)[1]))
+        
+        datesToAnalyse = self.sourceDates[(self.sourceDates >= userStartDate) & (self.sourceDates <= userEndDate)]
+        
+        if periodStart > periodEnd:
+            datesToAnalyse = datesToAnalyse[(datesToAnalyse.month >= periodStart) | (datesToAnalyse.month <= periodEnd)]
+        else:
+            datesToAnalyse = datesToAnalyse[(datesToAnalyse.month >= periodStart) & (datesToAnalyse.month <= periodEnd)]
+
+        self.datesToAnalyse = datesToAnalyse
+        
+    
         stepVec = np.array([])
 
         period = np.arange(self.userDateVec.year.unique().min(), self.userDateVec.year.unique().max(),yearRange+1)
@@ -94,14 +160,15 @@ class NcManager(object):
             if endDate <= self.srcEndDate and endDate <= self.userDateVec[-1]: 
                 stepVec = np.append(stepVec, [{     "startDate": startDate, 
                                                     "endDate": endDate,
-                                                    "startIdx": self.sourceDatesIdx[np.where(self.sourceDates==startDate)[0]],
-                                                    "endIdx": self.sourceDatesIdx[np.where(self.sourceDates==endDate)[0]],
+                                                    "startIdx": self.sourceDatesIdxAll[np.where(self.sourceDates==startDate)[0]],
+                                                    "endIdx": self.sourceDatesIdxAll[np.where(self.sourceDates==endDate)[0]],
                                              }])
 
+        self.boolDateVec = self.__createBoolDateVec()
         self.spanStartSpanEnd = stepVec
 
         return stepVec
-
+       
 
     def createTimeBounds(self, dateRange):
         '''
@@ -247,6 +314,73 @@ class NcManager(object):
         return dateTimeVec
 
 
+    def __setSourceDatesIdx(self, srcDates):
+        '''
+        Creates a pandas series with all the dates
+        from the source file and its corresponding
+        progressive index
+        
+        Returns
+        ----------
+        s : pandas:Series
+            Index = Source file dates as datetime
+            Value = Progressive index
+        '''        
+        s = pd.Series(np.arange(0,len(srcDates)), index=srcDates)
+        
+        return s
+
+
+    def __createBoolDateVec(self):
+        '''
+        Creates a boolean date vector between
+        user start and user end. Turns true if the
+        dates to analyse are in this range. E.g. this
+        is needed if a period over one year is chosen
+        and only a specific season has to be analysed.
+        
+        Returns
+        ----------
+        boolArr : ndarray
+            True = Dates that should be included for
+            further processing.
+            False = Dates that shouldn´t be included
+        '''      
+        boolArr = np.array([], dtype=bool)
+        
+        for date in self.userDateVec:
+            if date in self.datesToAnalyse:
+                boolArr = np.append(boolArr, True)
+            else:
+                boolArr = np.append(boolArr, False)
+
+        return boolArr
+
+
+    def __createChunkIndexes(self, userDates):
+        '''
+        Creates chunk indexes.
+        
+        Returns
+        ----------
+        chunkIdxs : ndarray
+            The chunk indexes as tuples
+        ''' 
+        chunkIdxs = []
+        step = 200
+        for startIdx in np.arange(-1, len(userDates), step):
+            endIdx = startIdx + step
+            lastDateIdx = userDates.get_loc(userDates[-1])
+            if startIdx+step > lastDateIdx:
+                endIdx = lastDateIdx+1
+                
+            startIdx = startIdx+1
+            
+            chunkIdxs.append((startIdx, endIdx))
+                
+        return chunkIdxs
+
+    
     def setOutputPath(self, op):
         self.outputPath = op
 
@@ -294,6 +428,7 @@ class NcManager(object):
         self.start = pd.to_datetime(start)
         self.end = pd.to_datetime(end)
         self.userDateVec = pd.date_range(self.start, self.end)
+        #self.chunkIdxContainer = self.__createChunkIndexes(self.userDateVec)
     
         if self.end > self.sourceDates[-1]:
             raise Exception("End time: " + str(self.end) + " is out of bounds. Bound end is " + str(self.sourceDates[-1]))
