@@ -111,7 +111,7 @@ class NcManager(object):
             raise
 
 
-    def createDateRanges(self, periodStart, periodEnd, yearRange):
+    def createDateRanges(self, period):
         '''
         Here the dateranges are created from the user defined
         timespan, season and year range.
@@ -131,15 +131,19 @@ class NcManager(object):
             Container with dicts which holds information
             about start/end Date and Indexes.
         '''
-        userStartDate = pd.to_datetime(date(self.start.year, periodStart,1))
-        userEndDate = pd.to_datetime(date(self.end.year, periodEnd, calendar.monthrange(self.end.year, periodEnd)[1]))
+        monthStart = period["monthStart"]
+        monthEnd = period["monthEnd"]
+        yearRange = period["yearRange"]
+        
+        userStartDate = pd.to_datetime(date(self.start.year, monthStart,1))
+        userEndDate = pd.to_datetime(date(self.end.year, monthEnd, calendar.monthrange(self.end.year, monthEnd)[1]))
         
         datesToAnalyse = self.sourceDates[(self.sourceDates >= userStartDate) & (self.sourceDates <= userEndDate)]
         
-        if periodStart > periodEnd:
-            datesToAnalyse = datesToAnalyse[(datesToAnalyse.month >= periodStart) | (datesToAnalyse.month <= periodEnd)]
+        if monthStart > monthEnd:
+            datesToAnalyse = datesToAnalyse[(datesToAnalyse.month >= monthStart) | (datesToAnalyse.month <= monthEnd)]
         else:
-            datesToAnalyse = datesToAnalyse[(datesToAnalyse.month >= periodStart) & (datesToAnalyse.month <= periodEnd)]
+            datesToAnalyse = datesToAnalyse[(datesToAnalyse.month >= monthStart) & (datesToAnalyse.month <= monthEnd)]
 
         self.datesToAnalyse = datesToAnalyse
         
@@ -150,12 +154,12 @@ class NcManager(object):
 
         for i in period:
             
-            startDate = pd.to_datetime(date(i, periodStart,1))
+            startDate = pd.to_datetime(date(i, monthStart,1))
             
-            if periodStart > periodEnd:
-                endDate = pd.to_datetime(date(i+yearRange+1, periodEnd,calendar.monthrange(i+1, periodEnd)[1]))
+            if monthStart > monthEnd:
+                endDate = pd.to_datetime(date(i+yearRange+1, monthEnd,calendar.monthrange(i+1, monthEnd)[1]))
             else:
-                endDate = pd.to_datetime(date(i+yearRange, periodEnd,calendar.monthrange(i, periodEnd)[1]))
+                endDate = pd.to_datetime(date(i+yearRange, monthEnd,calendar.monthrange(i, monthEnd)[1]))
             
             if endDate <= self.srcEndDate and endDate <= self.userDateVec[-1]: 
                 stepVec = np.append(stepVec, [{     "startDate": startDate, 
@@ -221,7 +225,7 @@ class NcManager(object):
         daysSince = str(self.daysSince).split()[0] 
         tunits = "days since " + daysSince
        
-        dateRange = self.createDateRanges(self.period["start"], self.period["end"], self.period["yearRange"])
+        dateRange = self.createDateRanges(self.period)
         timeBounds = self.createTimeBounds(dateRange)
             
         time = self.dst.createVariable(varname = 'time', datatype = 'i', dimensions = ('time'))  
@@ -410,17 +414,24 @@ class NcManager(object):
             if not isinstance(s, list):
                 raise ValueError("Period parameter must be of type array!") 
             
+            ds = s[0]
+            de = s[1]
+            ms = s[2]
+            me = s[3]
+            y  = s[4]
+            
+            isMonthSet = (ms != 0 or ms is not None) and (me != 0 or me is not None) 
+            isDaySet = (ds != 0 or ds is not None) and (de != 0 or de is not None)
+            
             if len(s) == 0:
                 print "No period set. Continuing with default 12-3"
                 self.period = {"start": 12, "end": 3, "yearRange": 0}
-            elif len(s) == 1:
-                self.period = {"start": s[0], "end": s[0], "yearRange": 0}
-            elif len(s) == 2:
-                self.period = {"start": s[0], "end": s[1], "yearRange": 0}
-            elif len(s) == 3:
-                self.period = {"start": s[0], "end": s[1], "yearRange": s[2]}
+            elif (isDaySet and isMonthSet):
+                self.period = {"dayStart": ds, "dayEnd": de,"monthStart": ms, "monthEnd": me, "yearRange": y}
+            elif isMonthSet:
+                self.period = {"dayStart": 1, "dayEnd": None, "monthStart": ms, "monthEnd": me, "yearRange": y}
             else:   
-                raise ValueError("Too much entries in paramterer 'period'")
+                raise ValueError("Wrong entries in parameter 'period'")
         except KeyError:
             self.period = {"start": 12, "end": 3, "yearRange": 0}
             print "Parameter 'period' not set. Continuing with default 12-3"
