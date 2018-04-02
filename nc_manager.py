@@ -8,7 +8,7 @@ import warnings
 from helpers import *
 from datetime import *
 import calendar
-
+import numpy.ma as ma
 
 class NcManager(object):
     '''
@@ -271,7 +271,8 @@ class NcManager(object):
             The current calculation step (Starting at 0)
         data : ndarray
             The data to write
-        '''         
+        '''
+        data = ma.masked_invalid(data)
         self.dst.variables[varName][stepIncr,:,:] = data
         
         

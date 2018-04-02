@@ -29,7 +29,7 @@ class CsvManager(object):
         points : ndarray
             Container with point instances
         '''
-        header = [varName["var"] for varName in vars]
+        header = [var["var"] for var in vars]
         header.insert(0,"timestep")
         
         df = pd.DataFrame(columns=header)
@@ -37,12 +37,12 @@ class CsvManager(object):
         for point in points:
             self.collector[id(point)] = {   "df": df, 
                                             "fileName": str(point.getPointCoords()["xIdx"]) + "_" + str(point.getPointCoords()["yIdx"]) + "_" + str(int(round(time.time()))),
-                                            "timestep": self.datesStrings
+                                            "timestep": {"data": self.datesStrings, "long_name": "timestep"}
                                         }
         
             for var in vars:
                 varName = var["var"]
-                self.collector[id(point)][varName] = []
+                self.collector[id(point)][varName] = {"data": [], "long_name": var["data"].long_name}
  
  
     def __dateFormatter(self, timespan):
@@ -81,9 +81,11 @@ class CsvManager(object):
             df = frame["df"] 
 
             for colName in list(df):
-                df[colName] = frame[colName] 
+                print frame[colName]
+                df[colName] = frame[colName]["data"]
+                df = df.rename(index=str, columns={colName: frame[colName]["long_name"]})
 
-            frame["df"].to_csv(self.path + frame["fileName"] + ".csv", index=False)
+            df.to_csv(self.path + frame["fileName"] + ".csv", index=False)
     
     
     def collectValues(self, varName, val, point):
@@ -94,12 +96,10 @@ class CsvManager(object):
         Parameters
         ----------
         varName : string
-            Container with dicts which holds information
-            about start/end Date and Indexes.
         val : numeric
             The extracted value for the point
         point : point_manager.Point()
             Point instance
         '''
-        varValContainer = self.collector[id(point)][varName] 
+        varValContainer = self.collector[id(point)][varName]["data"] 
         varValContainer.append(val)

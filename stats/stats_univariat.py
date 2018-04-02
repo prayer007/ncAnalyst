@@ -47,7 +47,7 @@ class StatsUnivariat(object):
         if not nc_manager.customTimeFlag:
             warnings.warn("Attention! There is no timespan set, so default timespan is used. On big data that may leed to long execution times. Set the timespan with DataAnalysis().setTimeSpan(start, end, step)", UserWarning)
         
-        # print("Calculating variable: " + varName)
+        print("Calculating variable: " + varName)
         # print("Start time is: " + pd.to_datetime(str(nc_manager.start)).strftime('%Y-%m-%d'))
         # print("End time is: " + pd.to_datetime(str(nc_manager.end)).strftime('%Y-%m-%d'))
         # print("Step time is: " + nc_manager.step)
@@ -72,7 +72,7 @@ class StatsUnivariat(object):
             for point in self.point_manager.pointsContainer:
                 val = point.extractPtVal(result)
                 csv.collectValues(varName, val, point)
-                
+            
             nc_manager.writeToOutputFile(varName, i, result)
             
             
