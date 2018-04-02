@@ -37,12 +37,23 @@ class CsvManager(object):
         for point in points:
             self.collector[id(point)] = {   "df": df, 
                                             "fileName": str(point.getPointCoords()["xIdx"]) + "_" + str(point.getPointCoords()["yIdx"]) + "_" + str(int(round(time.time()))),
-                                            "timestep": {"data": self.datesStrings, "long_name": "timestep"}
+                                            "timestep": {"data": self.datesStrings, "long_name": "timestep", "units": ""}
                                         }
         
             for var in vars:
                 varName = var["var"]
-                self.collector[id(point)][varName] = {"data": [], "long_name": var["data"].long_name}
+                
+                try:
+                    long_name = var["data"].long_name
+                except:
+                    long_name = ""
+                    
+                try:
+                    units = var["data"].units
+                except:
+                    units = ""    
+                
+                self.collector[id(point)][varName] = {"data": [], "long_name": long_name, "units": units}
  
  
     def __dateFormatter(self, timespan):
@@ -81,9 +92,8 @@ class CsvManager(object):
             df = frame["df"] 
 
             for colName in list(df):
-                print frame[colName]
                 df[colName] = frame[colName]["data"]
-                df = df.rename(index=str, columns={colName: frame[colName]["long_name"]})
+                df = df.rename(index=str, columns={colName: frame[colName]["long_name"] + "/" + frame[colName]["units"]})
 
             df.to_csv(self.path + frame["fileName"] + ".csv", index=False)
     
