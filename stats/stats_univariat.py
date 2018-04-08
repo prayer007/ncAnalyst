@@ -4,14 +4,14 @@ from datetime import *
 import calendar
 from csv_manager import *
 from point_manager import *
-
+import pickle
 
 class StatsUnivariat(object):    
     '''
     This class handles the univariat statistical 
     analysis. 
     '''
-    def __init__(self, nc_manager, point_manager):
+    def __init__(self, nc_manager, point_manager, ofPath):
         '''        
         Parameters
         ----------
@@ -23,7 +23,15 @@ class StatsUnivariat(object):
         self.nc_manager = nc_manager
         self.point_manager = point_manager
         self.varsToBeAnalysed = []
+        self.ofPath = self.setOfPath(ofPath)
 
+
+    def setOfPath(self, path):
+        self.nc_manager.outputPath = path #Change the default path in the nc_manager
+        self.ofPath = path
+        
+        return path
+        
 
     def __calc(self, varName, varToBeAnalysed, funcToBeApplied, csv):
         '''        
@@ -48,10 +56,7 @@ class StatsUnivariat(object):
             warnings.warn("Attention! There is no timespan set, so default timespan is used. On big data that may leed to long execution times. Set the timespan with DataAnalysis().setTimeSpan(start, end, step)", UserWarning)
         
         print("Calculating variable: " + varName)
-        # print("Start time is: " + pd.to_datetime(str(nc_manager.start)).strftime('%Y-%m-%d'))
-        # print("End time is: " + pd.to_datetime(str(nc_manager.end)).strftime('%Y-%m-%d'))
-        # print("Step time is: " + nc_manager.step)
-    
+
         for i, period in enumerate(nc_manager.spanStartSpanEnd):
             
             periodStartIdx = nc_manager.sourceDatesIdx[period["startDate"]]
@@ -62,10 +67,15 @@ class StatsUnivariat(object):
             
             timestepStr = str(period["startDate"]) + " - " + str(period["endDate"]) # Timestep string for .csv output
             
-            if funcToBeApplied == "sum":
-                result = np.sum(data, axis = 0)
-            elif funcToBeApplied == "mean":
-                result = np.mean(data, axis = 0)
+            funcName = funcToBeApplied["name"] 
+            funcProps = funcToBeApplied["props"]
+            
+            if funcName == "count":
+                result = self.calcCount(funcToBeApplied, data)
+            elif funcName == "sum":
+                result = self.calcSum(funcToBeApplied, data)
+            elif funcName == "mean":
+                result = self.calcMean(funcToBeApplied, data)
             else:
                 raise ValueError("Function '" + funcToBeApplied + "' to be applied on variable '" + varName + "' not known.")
             
@@ -73,9 +83,14 @@ class StatsUnivariat(object):
                 val = point.extractPtVal(result)
                 csv.collectValues(varName, val, point)
             
-            nc_manager.writeToOutputFile(varName, i, result)
-            
-            
+            if funcProps:
+                ncVarName = varName + "_[" + funcName + "_" + funcProps[1] + "_" + str(funcProps[2]) + "]"
+            else:
+                ncVarName = varName + "_[" + funcName + "]"
+                
+            nc_manager.writeToOutputFile(ncVarName, i, result)
+
+
     def calcAll(self):
         '''        
         Calls the calculating function iteratively 
@@ -87,7 +102,7 @@ class StatsUnivariat(object):
         if not varsToBeAnalysed:
             print('There is no Variable to analyse.')
         
-        csv = CsvManager("F:/SNOWMODEL_RUNS/run1_45_10_max_eq/", self.nc_manager.spanStartSpanEnd, varsToBeAnalysed, self.point_manager.pointsContainer)
+        csv = CsvManager(self.nc_manager.workingDir, self.nc_manager.spanStartSpanEnd, varsToBeAnalysed, self.point_manager.pointsContainer)
         
         for var in varsToBeAnalysed:
             varName = var["var"]
@@ -100,6 +115,163 @@ class StatsUnivariat(object):
 
         csv.writeDataToFile()
         self.nc_manager.dst.close()
+
+
+    def calcCount(self, func, data):
+        '''        
+        Counts values in the defined timespan for
+        a specific condition (E.g. All temps > 5
+        for winter).
+        
+        Parameters
+        ----------
+        func : dict
+            Dict with information about the statistical 
+            function to be applied like name and properties
+        data : ndarray
+            Three dimensional array with the dataframes
+            to be counted
+            
+        Returns
+        ----------
+        count : ndarray
+            Array with the counted appearances
+        '''
+        resData = data.copy()
+                
+        if not func["props"]:
+            resData[:] = 1
+        elif func["props"][0] is True:
+            try:
+                sign = func["props"][1]
+            except:
+                raise ValueError("Sign not set. Leave function properties empty or choose a sign (<,>,<=,>=) and value") 
+    
+            try:
+                val = func["props"][2]
+            except:
+                raise ValueError("No value set. Leave function properties empty or choose a value") 
+                
+            if sign == '<':
+                resData[data < val] = 1
+                resData[data >= val] = 0
+            elif sign == '>':
+                resData[data > val] = 1
+                resData[data <= val] = 0
+            elif sign == '<=':
+                resData[data <= val] = 1
+                resData[data > val] = 0
+            elif sign == '>=':
+                resData[data >= val] = 1
+                resData[data < val] = 0
+            else:
+                raise ValueError("Wrong sign chosen. Available sign are (<,>,<=,>=)") 
+        
+        count = np.sum(resData, axis = 0)
+            
+        return count
+
+
+    def calcSum(self, func, data):
+        '''        
+        Calculates the sum of the data. Either for all 
+        values in the dataset or only for specific 
+        values. Not used values are set to nan. 
+        
+        Parameters
+        ----------
+        func : dict
+            Dict with information about the statistical 
+            function to be applied like name and properties
+        data : ndarray
+            Three dimensional array with the dataframes
+            to be counted
+            
+        Returns
+        ----------
+        sum_ : ndarray
+            Array with the appearances summed up
+        '''
+        resData = data.copy()
+        
+        if not func["props"]:
+            pass 
+        elif func["props"][0] is True:
+            try:
+                sign = func["props"][1]
+            except:
+                raise ValueError("Sign not set. Leave function properties empty or choose a sign (<,>,<=,>=) and value") 
+    
+            try:
+                val = func["props"][2]
+            except:
+                raise ValueError("No value set. Leave function properties empty or choose a value") 
+                
+            if sign == '<':
+                resData[data >= val] = np.nan
+            elif sign == '>':
+                resData[data <= val] =  np.nan
+            elif sign == '<=':
+                resData[data > val] =  np.nan
+            elif sign == '>=':
+                resData[data < val] =  np.nan
+            else:
+                raise ValueError("Wrong sign chosen. Available sign are (<,>,<=,>=)") 
+        
+        sum_ = np.sum(resData, axis = 0)
+            
+        return sum_
+
+ 
+    def calcMean(self, func, data):
+        '''        
+        Calculates the mean of the data. Either for all 
+        values in the dataset or only for specific 
+        values. Not used values are set to nan. 
+        
+        Parameters
+        ----------
+        func : dict
+            Dict with information about the statistical 
+            function to be applied like name and properties
+        data : ndarray
+            Three dimensional array with the dataframes
+            to be counted
+            
+        Returns
+        ----------
+        sum_ : ndarray
+            Array with the appearances summed up
+        '''        
+        resData = data.copy()
+        
+        if not func["props"]:
+            pass
+        elif func["props"][0] is True:
+            try:
+                sign = func["props"][1]
+            except:
+                raise ValueError("Sign not set. Leave function properties empty or choose a sign (<,>,<=,>=) and value") 
+    
+            try:
+                val = func["props"][2]
+            except:
+                raise ValueError("No value set. Leave function properties empty or choose a value") 
+                
+            if sign == '<':
+                resData[data >= val] = np.nan
+            elif sign == '>':
+                resData[data <= val] =  np.nan
+            elif sign == '<=':
+                resData[data > val] =  np.nan
+            elif sign == '>=':
+                resData[data < val] =  np.nan
+            else:
+                raise ValueError("Wrong sign chosen. Available sign are (<,>,<=,>=)") 
+        
+        mean_ = np.mean(resData, axis = 0)
+            
+        return mean_
 
 
     def setVariablesToAnalyse(self, vars_):
@@ -116,15 +288,15 @@ class StatsUnivariat(object):
         # Appends the netCDF src variable. 
         nc_manager = self.nc_manager
         
+        self.varsToBeAnalysed = vars_
+        
         for i in vars_:
             try:
                 i["data"] = nc_manager.src.variables[i["var"]]
-                self.varsToBeAnalysed = vars_ 
                 self.varShape = i["data"][0].shape
-                nc_manager.varNamesToBeAnalysed = np.append(nc_manager.varNamesToBeAnalysed, i["var"])
 
             except KeyError as e: 
                 print("Variable '" + i["var"] + "' not found in datafile. Continues with next variable...")
                 i["var"] = "skip"
         
-        nc_manager.initializeOutputFile(nc_manager.outputPath)
+        nc_manager.initializeOutputFile(self.ofPath, vars_)

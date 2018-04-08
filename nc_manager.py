@@ -17,14 +17,16 @@ class NcManager(object):
     input file data id readed, the output file initilized and 
     written.
     '''
-    def __init__(self, ncPath, outputPath):
+    def __init__(self, working_dir, ncPath, outputPath):
         '''        
         Parameters
         ----------
+        working_dir : string
+            The working directory
         ncPath : string
             The path of the source file.
         outputPath : string
-            The path of the destination file.
+            The default output path of the destination file.
 
         Attributes
         ----------
@@ -77,7 +79,8 @@ class NcManager(object):
         self.src = None 
         self.dest = None 
         self.outputPath = None
-        self.readData(ncPath)
+        self.workingDir = working_dir
+        self.readData(working_dir, ncPath)
         self.setOutputPath(outputPath)
         self.varNamesToBeAnalysed = []
         self.daysSince = self.__setDaysSince(self.src.variables["time"])
@@ -98,14 +101,16 @@ class NcManager(object):
         self.customTimeFlag = False
         
         
-    def readData(self, ncPath):
+    def readData(self, working_dir, ncPath):
         '''
         Reads the whole ncfile as a netCDF4.Dataset
         '''        
         try:
-            self.src = Dataset(ncPath, mode="r", format="NETCDF4")
+            self.src = Dataset(working_dir + ncPath, mode="r", format="NETCDF4")
+            self.src.set_auto_mask(False)
         except IOError as (errno, strerror):
             print "Could not open netCDF file. I/O error({0}): {1}".format(errno, strerror)
+            raise
         except:
             print "Could not open netCDF file. Unexpected error:", sys.exc_info()[0]
             raise
@@ -198,7 +203,7 @@ class NcManager(object):
         return timebnd
 
 
-    def initializeOutputFile(self, outputPath):
+    def initializeOutputFile(self, outputPath, varsToBeAnalysed):
         '''
         Initializes the ouput file with all its dimension
         and metadata for the defined variables.
@@ -238,9 +243,9 @@ class NcManager(object):
         time_bnds.calendar = "gregorian";
         time_bnds.units = tunits
         
-
         time_bnds[:] = timeBounds
-        varNameContainer = self.varNamesToBeAnalysed
+        
+        varNameContainer = [i["var"] for i  in varsToBeAnalysed]
   
         for name, variable in self.src.variables.iteritems():
         
@@ -250,6 +255,15 @@ class NcManager(object):
             if name not in varNameContainer and name != xDim and name != yDim: 
                 continue
             
+            for var in varsToBeAnalysed:
+                if name == var["var"]:
+                    funcName = var["func"]["name"]
+                    funcProps = var["func"]["props"] 
+                    if funcProps:
+                        name = name + "_[" + funcName + "_" + funcProps[1] + "_" + str(funcProps[2]) + "]"
+                    else:
+                        name = name + "_[" + funcName + "]"
+
             varOut = self.dst.createVariable(name, variable.datatype, variable.dimensions)
             
             if name == xDim or name == yDim:
@@ -272,7 +286,6 @@ class NcManager(object):
         data : ndarray
             The data to write
         '''
-        data = ma.masked_invalid(data)
         self.dst.variables[varName][stepIncr,:,:] = data
         
         

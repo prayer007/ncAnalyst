@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import pandas as pd
 import time
 
@@ -7,9 +10,9 @@ class CsvManager(object):
     formatting, inserting values and writing output files for
     spotty data (e.g. statistics of user defined points).
     '''
-    def __init__(self, path, timespan, vars, points): 
+    def __init__(self, working_dir, timespan, vars, points): 
         self.collector = {}
-        self.path = path
+        self.workingDir = working_dir
         self.datesStrings = self.__dateFormatter(timespan)
         self.__initFileFrames(vars, points)
 
@@ -36,17 +39,18 @@ class CsvManager(object):
         
         for point in points:
             self.collector[id(point)] = {   "df": df, 
-                                            "fileName": str(point.getPointCoords()["xIdx"]) + "_" + str(point.getPointCoords()["yIdx"]) + "_" + str(int(round(time.time()))),
+                                            "fileName": str(point.getPointCoords()["xIdx"]) + "_" + str(point.getPointCoords()["yIdx"]),
                                             "timestep": {"data": self.datesStrings, "long_name": "timestep", "units": ""}
                                         }
         
             for var in vars:
                 varName = var["var"]
+                funcName = var["func"]["name"]
                 
                 try:
-                    long_name = var["data"].long_name
+                    long_name = var["data"].long_name + "_" + funcName
                 except:
-                    long_name = ""
+                    long_name = varName + "_" + funcName
                     
                 try:
                     units = var["data"].units
@@ -93,9 +97,15 @@ class CsvManager(object):
 
             for colName in list(df):
                 df[colName] = frame[colName]["data"]
-                df = df.rename(index=str, columns={colName: frame[colName]["long_name"] + "/" + frame[colName]["units"]})
+                
+                if colName != "timestep":
+                    unitSep = "/"
+                else:
+                    unitSep = ""
+                    
+                df = df.rename(index=str, columns={colName: frame[colName]["long_name"] + unitSep + frame[colName]["units"]})
 
-            df.to_csv(self.path + frame["fileName"] + ".csv", index=False)
+            df.to_csv(self.workingDir + frame["fileName"] + ".csv", index=False)
     
     
     def collectValues(self, varName, val, point):
