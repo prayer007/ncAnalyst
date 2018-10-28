@@ -145,7 +145,7 @@ class NcManager(object):
         
         datesToAnalyse = self.sourceDates[(self.sourceDates >= userStartDate) & (self.sourceDates <= userEndDate)]
         
-        if monthStart > monthEnd:
+        if monthStart >= monthEnd:
             datesToAnalyse = datesToAnalyse[(datesToAnalyse.month >= monthStart) | (datesToAnalyse.month <= monthEnd)]
         else:
             datesToAnalyse = datesToAnalyse[(datesToAnalyse.month >= monthStart) & (datesToAnalyse.month <= monthEnd)]
@@ -161,7 +161,7 @@ class NcManager(object):
             
             startDate = pd.to_datetime(date(i, monthStart,1))
             
-            if monthStart > monthEnd:
+            if monthStart >= monthEnd:
                 endDate = pd.to_datetime(date(i+yearRange+1, monthEnd,calendar.monthrange(i+1, monthEnd)[1]))
             else:
                 endDate = pd.to_datetime(date(i+yearRange, monthEnd,calendar.monthrange(i, monthEnd)[1]))

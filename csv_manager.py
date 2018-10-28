@@ -10,8 +10,9 @@ class CsvManager(object):
     formatting, inserting values and writing output files for
     spotty data (e.g. statistics of user defined points).
     '''
-    def __init__(self, working_dir, timespan, vars, points): 
+    def __init__(self, working_dir, timespan, vars, points, filename): 
         self.collector = {}
+        self.filename = filename
         self.workingDir = working_dir
         self.datesStrings = self.__dateFormatter(timespan)
         self.__initFileFrames(vars, points)
@@ -39,7 +40,7 @@ class CsvManager(object):
         
         for point in points:
             self.collector[id(point)] = {   "df": df, 
-                                            "fileName": str(point.getPointCoords()["xIdx"]) + "_" + str(point.getPointCoords()["yIdx"]),
+                                            "fileName": str(point.getPointCoords()["xIdx"]) + "_" + str(point.getPointCoords()["yIdx"]) + self.filename,
                                             "timestep": {"data": self.datesStrings, "long_name": "timestep", "units": ""}
                                         }
         

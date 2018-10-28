@@ -24,6 +24,7 @@ class StatsUnivariat(object):
         self.point_manager = point_manager
         self.varsToBeAnalysed = []
         self.ofPath = self.setOfPath(ofPath)
+        self.fn = ""
 
 
     def setOfPath(self, path):
@@ -31,6 +32,10 @@ class StatsUnivariat(object):
         self.ofPath = path
         
         return path
+        
+
+    def setFilename(self, fn):
+        self.fn = fn
         
 
     def __calc(self, varName, varToBeAnalysed, funcToBeApplied, csv):
@@ -102,7 +107,7 @@ class StatsUnivariat(object):
         if not varsToBeAnalysed:
             print('There is no Variable to analyse.')
         
-        csv = CsvManager(self.nc_manager.workingDir, self.nc_manager.spanStartSpanEnd, varsToBeAnalysed, self.point_manager.pointsContainer)
+        csv = CsvManager(self.nc_manager.workingDir, self.nc_manager.spanStartSpanEnd, varsToBeAnalysed, self.point_manager.pointsContainer, self.fn)
         
         for var in varsToBeAnalysed:
             varName = var["var"]
