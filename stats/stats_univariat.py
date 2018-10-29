@@ -69,7 +69,7 @@ class StatsUnivariat(object):
 
             boolArr = nc_manager.boolDateVec[periodStartIdx:periodEndIdx]
             data = varToBeAnalysed[periodStartIdx:periodEndIdx][boolArr]
-            
+
             timestepStr = str(period["startDate"]) + " - " + str(period["endDate"]) # Timestep string for .csv output
             
             funcName = funcToBeApplied["name"] 
@@ -111,6 +111,7 @@ class StatsUnivariat(object):
         
         for var in varsToBeAnalysed:
             varName = var["var"]
+        
             
             if varName != "skip":
                 data = var["data"]
@@ -222,8 +223,10 @@ class StatsUnivariat(object):
                 resData[data < val] =  np.nan
             else:
                 raise ValueError("Wrong sign chosen. Available sign are (<,>,<=,>=)") 
-        
+                
         sum_ = np.sum(resData, axis = 0)
+            
+
             
         return sum_
 
@@ -245,8 +248,8 @@ class StatsUnivariat(object):
             
         Returns
         ----------
-        sum_ : ndarray
-            Array with the appearances summed up
+        mean_ : ndarray
+            Array with the mean
         '''        
         resData = data.copy()
         
@@ -274,8 +277,8 @@ class StatsUnivariat(object):
             else:
                 raise ValueError("Wrong sign chosen. Available sign are (<,>,<=,>=)") 
         
-        mean_ = np.mean(resData, axis = 0)
-            
+        mean_ = np.nanmean(resData, axis = 0)
+        
         return mean_
 
 
